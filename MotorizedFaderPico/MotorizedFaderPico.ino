@@ -1,5 +1,5 @@
 //#include "src/Control-Surface/src/Control_Surface.h" // Include the Control Surface library
-//#include <Control_Surface.h> // Include the Control Surface library
+#include <Control_Surface.h> // Include the Control Surface library
 //#include <MIDI_Interfaces/BluetoothMIDI_Interface.hpp>
 #include <ArduPID.h>
 #include <SerialCommands.h>
@@ -24,6 +24,8 @@ ArduPID faderPID;
 //	FADER_PIN,
 //	{MIDI_CC::Channel_Volume, Channel_1},
 //};
+
+FilteredAnalog<10, 4, uint32_t> faderAnalog = FADER_PIN;
 
 // Command line things
 char serial_command_buffer_[32];
@@ -63,6 +65,9 @@ void setup() {
 	// Initialize Control Surface
 	//Control_Surface.begin();
 
+	// Set up FilteredAnalog
+	FilteredAnalog<>::setupADC();
+
 	// Set up motor driver
 	analogWriteFreq(50000); // Make PWM frequency outside the range of human hearing
 	pinMode(MOTOR_PIN_FORWARD, OUTPUT);
@@ -74,6 +79,7 @@ void setup() {
 	faderPID.begin(&controlLoopInput, &controlLoopOutput, &controlLoopSetpoint, kP, kI, kD);
 	faderPID.setOutputLimits(-255, 255);
 	faderPID.setWindUpLimits(-150, 150);
+	faderPID.setDeadBand(-25, 25);
 	faderPID.start();
 }
 
@@ -84,7 +90,7 @@ void loop() {
 
 	controlLoopSetpoint = 511;
 
-	faderPID.debug(&Serial, "myController", PRINT_INPUT |
+	faderPID.debug(&Serial, "faderPID", PRINT_INPUT |
 			PRINT_OUTPUT |
 			PRINT_SETPOINT |
 			PRINT_BIAS |
@@ -94,7 +100,8 @@ void loop() {
 }
 
 void loop1() {
-	controlLoopInput = analogRead(FADER_PIN);
+  faderAnalog.update();
+	controlLoopInput = faderAnalog.getValue();
 
 	faderPID.compute();
 
