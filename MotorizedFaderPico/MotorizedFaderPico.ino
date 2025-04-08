@@ -1,6 +1,4 @@
-//#include "src/Control-Surface/src/Control_Surface.h" // Include the Control Surface library
 #include <Control_Surface.h> // Include the Control Surface library
-//#include <MIDI_Interfaces/BluetoothMIDI_Interface.hpp>
 #include <SerialCommands.h>
 #include "motorcontroller.h"
 #include "controlloop.h"
@@ -15,14 +13,6 @@ const double kD = 0.04;
 
 // Control loop
 ControlLoop controlLoop = ControlLoop();
-
-// Instantiate a MIDI over BLE interface.
-//BluetoothMIDI_Interface midi;
-
-//CCPotentiometer potentiometer {
-//	FADER_PIN,
-//	{MIDI_CC::Channel_Volume, Channel_1},
-//};
 
 FilteredAnalog<10, 4, uint32_t> faderAnalog = A0;
 
@@ -58,9 +48,6 @@ void setup() {
 	serial_commands_.AddCommand(&cmd_setI_);
 	serial_commands_.AddCommand(&cmd_setD_);
 
-	// Initialize Control Surface
-	//Control_Surface.begin();
-
 	// Set up FilteredAnalog
 	FilteredAnalog<>::setupADC();
 
@@ -80,8 +67,6 @@ void setup() {
 
 void loop() {
 	serial_commands_.ReadSerial();
-
-	//Control_Surface.loop(); // Update the Control Surface
 
 	controlLoop.set(511);
 }
