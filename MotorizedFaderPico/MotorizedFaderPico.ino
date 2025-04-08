@@ -1,21 +1,20 @@
 //#include "src/Control-Surface/src/Control_Surface.h" // Include the Control Surface library
 #include <Control_Surface.h> // Include the Control Surface library
 //#include <MIDI_Interfaces/BluetoothMIDI_Interface.hpp>
-#include <ArduPID.h>
 #include <SerialCommands.h>
+#include "motorcontroller.h"
+#include "controlloop.h"
 
-#define FADER_PIN A0
-#define MOTOR_PIN_FORWARD 0
-#define MOTOR_PIN_BACKWARD 1
-#define MOTOR_SLEEP_PIN 16
+// Motor controller
+MotorController motor = MotorController(0, 1, 16);
 
 // Initial PID constants
-double kP = 1.25;
-double kI = 64;
-double kD = 0.04;
+const double kP = 1.25;
+const double kI = 64;
+const double kD = 0.04;
 
-double controlLoopSetpoint, controlLoopInput, controlLoopOutput;
-ArduPID faderPID;
+// Control loop
+ControlLoop controlLoop = ControlLoop();
 
 // Instantiate a MIDI over BLE interface.
 //BluetoothMIDI_Interface midi;
@@ -25,7 +24,7 @@ ArduPID faderPID;
 //	{MIDI_CC::Channel_Volume, Channel_1},
 //};
 
-FilteredAnalog<10, 4, uint32_t> faderAnalog = FADER_PIN;
+FilteredAnalog<10, 4, uint32_t> faderAnalog = A0;
 
 // Command line things
 char serial_command_buffer_[32];
@@ -33,22 +32,19 @@ char serial_command_buffer_[32];
 SerialCommands serial_commands_(&Serial, serial_command_buffer_, sizeof(serial_command_buffer_), "\n", " ");
 
 void cmd_setP(SerialCommands* sender) {
-	kP = atof(sender->Next());
-	faderPID.setCoefficients(kP, kI, kD);
+	controlLoop.setP(atof(sender->Next()));
 }
 
 SerialCommand cmd_setP_("setp", cmd_setP);
 
 void cmd_setI(SerialCommands* sender) {
-	kI = atof(sender->Next());
-	faderPID.setCoefficients(kP, kI, kD);
+	controlLoop.setI(atof(sender->Next()));
 }
 
 SerialCommand cmd_setI_("seti", cmd_setI);
 
 void cmd_setD(SerialCommands* sender) {
-	kD = atof(sender->Next());
-	faderPID.setCoefficients(kP, kI, kD);
+	controlLoop.setD(atof(sender->Next()));
 }
 
 SerialCommand cmd_setD_("setd", cmd_setD);
@@ -70,17 +66,16 @@ void setup() {
 
 	// Set up motor driver
 	analogWriteFreq(50000); // Make PWM frequency outside the range of human hearing
-	pinMode(MOTOR_PIN_FORWARD, OUTPUT);
-	pinMode(MOTOR_PIN_BACKWARD, OUTPUT);
-	pinMode(MOTOR_SLEEP_PIN, OUTPUT);
-	digitalWrite(MOTOR_SLEEP_PIN, HIGH);
+  motor.begin();
 
 	// Set up PID
-	faderPID.begin(&controlLoopInput, &controlLoopOutput, &controlLoopSetpoint, kP, kI, kD);
-	faderPID.setOutputLimits(-255, 255);
-	faderPID.setWindUpLimits(-150, 150);
-	faderPID.setDeadBand(-25, 25);
-	faderPID.start();
+  controlLoop.setP(kP);
+  controlLoop.setI(kI);
+  controlLoop.setD(kD);
+  controlLoop.begin();
+  controlLoop.setOutputLimits(-255, 255);
+	controlLoop.setWindUpLimits(-150, 150);
+	controlLoop.setDeadBand(-25, 25);
 }
 
 void loop() {
@@ -88,31 +83,14 @@ void loop() {
 
 	//Control_Surface.loop(); // Update the Control Surface
 
-	controlLoopSetpoint = 511;
-
-	faderPID.debug(&Serial, "faderPID", PRINT_INPUT |
-			PRINT_OUTPUT |
-			PRINT_SETPOINT |
-			PRINT_BIAS |
-			PRINT_P |
-			PRINT_I |
-			PRINT_D);
+	controlLoop.set(511);
 }
 
 void loop1() {
   faderAnalog.update();
-	controlLoopInput = faderAnalog.getValue();
 
-	faderPID.compute();
+	controlLoop.setFeedback(faderAnalog.getValue());
+	controlLoop.update();
 
-	if (controlLoopOutput > 0) {
-		analogWrite(MOTOR_PIN_FORWARD, abs(controlLoopOutput));
-		digitalWrite(MOTOR_PIN_BACKWARD, LOW);
-	} else if (controlLoopOutput < 0) {
-		digitalWrite(MOTOR_PIN_FORWARD, LOW);
-		analogWrite(MOTOR_PIN_BACKWARD, abs(controlLoopOutput));
-	} else {
-		digitalWrite(MOTOR_PIN_FORWARD, LOW);
-		digitalWrite(MOTOR_PIN_BACKWARD, LOW);
-	}
+  motor.setMotorSpeed(controlLoop.getOutput());
 }
