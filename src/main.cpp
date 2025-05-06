@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "controlloop.h"
 #include "motorcontroller.h"
 #include <Control_Surface.h> // Include the Control Surface library
