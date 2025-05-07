@@ -83,15 +83,17 @@ void loop() {
 	serial_commands_.ReadSerial();
 
 	controlLoop.set(511);
-}
 
-void loop1() {
-	// Read from the ADC
-	faderADC.readConversion();
-	float potMilliVolts = myADC.getConversionMillivolts();
+	if (faderADC.dataReady()) {
+		// Read from the ADC
+		faderADC.readConversion();
+		float potMilliVolts = myADC.getConversionMillivolts();
+
+		// Update the control loop
+		controlLoop.setFeedback(potMilliVolts);
+	}
 
 	// Update the control loop
-	controlLoop.setFeedback(potMilliVolts);
 	controlLoop.update();
 
 	// Set the motor speed accordingly
