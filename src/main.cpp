@@ -41,6 +41,12 @@ void cmd_setD(SerialCommands *sender) {
 
 SerialCommand cmd_setD_("setd", cmd_setD);
 
+void cmd_set(SerialCommands *sender) {
+	controlLoop.set(atoi(sender->Next()));
+}
+
+SerialCommand cmd_set_("set", cmd_set);
+
 void setup() {
 	// Set up serial
 	Serial.begin(115200);
@@ -74,6 +80,7 @@ void setup() {
 	controlLoop.setOutputLimits(-255, 255);
 	controlLoop.setWindUpLimits(-150, 150);
 	controlLoop.setDeadBand(-25, 25);
+	controlLoop.set(511);
 
 	// Start the continuous conversions
 	faderADC.startSync();
@@ -81,8 +88,6 @@ void setup() {
 
 void loop() {
 	serial_commands_.ReadSerial();
-
-	controlLoop.set(511);
 
 	if (faderADC.dataReady()) {
 		// Read from the ADC
