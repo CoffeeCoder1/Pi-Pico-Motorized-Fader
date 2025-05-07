@@ -1,11 +1,14 @@
-#include <Arduino.h>
 #include "controlloop.h"
 #include "motorcontroller.h"
-#include <Control_Surface.h> // Include the Control Surface library
+#include <Arduino.h>
 #include <SerialCommands.h>
+#include <SparkFun_ADS1219.h>
 
 // Motor controller
 MotorController motor = MotorController(0, 1, 16);
+
+// ADC
+SfeADS1219ArdI2C faderADC;
 
 // Initial PID constants
 const double kP = 1.25;
@@ -14,8 +17,6 @@ const double kD = 0.04;
 
 // Control loop
 ControlLoop controlLoop = ControlLoop();
-
-FilteredAnalog<10, 4, uint32_t> faderAnalog = A0;
 
 // Command line things
 char serial_command_buffer_[32];
@@ -44,17 +45,26 @@ void setup() {
 	// Set up serial
 	Serial.begin(115200);
 
+	// Set up I2C
+	Wire.begin();
+
 	// Set up command line
 	serial_commands_.AddCommand(&cmd_setP_);
 	serial_commands_.AddCommand(&cmd_setI_);
 	serial_commands_.AddCommand(&cmd_setD_);
 
-	// Set up FilteredAnalog
-	FilteredAnalog<>::setupADC();
-
 	// Set up motor driver
 	analogWriteFreq(50000); // Make PWM frequency outside the range of human hearing
 	motor.begin();
+
+	// Initialize ADC - this also performs a soft reset
+	while (!faderADC.begin()) {
+		Serial.println("ADC failed to initialize. Please check your wiring! Retrying...");
+		delay(1000);
+	}
+
+	// Put the ADC into continuous mode
+	faderADC.setConversionMode(ADS1219_CONVERSION_CONTINUOUS);
 
 	// Set up PID
 	controlLoop.setP(kP);
@@ -64,6 +74,9 @@ void setup() {
 	controlLoop.setOutputLimits(-255, 255);
 	controlLoop.setWindUpLimits(-150, 150);
 	controlLoop.setDeadBand(-25, 25);
+
+	// Start the continuous conversions
+	faderADC.startSync();
 }
 
 void loop() {
@@ -73,10 +86,14 @@ void loop() {
 }
 
 void loop1() {
-	faderAnalog.update();
+	// Read from the ADC
+	faderADC.readConversion();
+	float potMilliVolts = myADC.getConversionMillivolts();
 
-	controlLoop.setFeedback(faderAnalog.getValue());
+	// Update the control loop
+	controlLoop.setFeedback(potMilliVolts);
 	controlLoop.update();
 
+	// Set the motor speed accordingly
 	motor.setMotorSpeed(controlLoop.getOutput());
 }
